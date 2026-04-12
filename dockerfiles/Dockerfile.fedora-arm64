@@ -1,0 +1,40 @@
+# Fedora arm64 compat test image.
+FROM arm64v8/fedora:latest
+
+ARG PACKAGE_GROUP=x11-base
+ARG ZIG_VERSION=0.15.2
+
+RUN dnf install -y \
+    gcc \
+    make \
+    curl \
+    xz \
+    pkgconfig \
+    xorg-x11-server-Xvfb \
+    openbox \
+    xprop \
+    xrandr \
+    libxcb-devel \
+    xcb-util-devel \
+    xcb-util-wm-devel \
+    xcb-util-keysyms-devel \
+    xcb-util-renderutil-devel \
+    xcb-util-cursor-devel \
+    cairo-devel \
+    pango-devel \
+    && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \
+        dnf install -y librsvg2-devel gdk-pixbuf2-devel pipewire-devel; \
+    fi \
+    && dnf clean all
+
+RUN ARCH=$(uname -m) && \
+    curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-${ARCH}-linux-${ZIG_VERSION}.tar.xz" \
+    | tar -xJ -C /opt \
+    && ln -s /opt/zig-${ARCH}-linux-${ZIG_VERSION}/zig /usr/local/bin/zig
+
+WORKDIR /src
+COPY . .
+
+COPY .github-workflows/scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

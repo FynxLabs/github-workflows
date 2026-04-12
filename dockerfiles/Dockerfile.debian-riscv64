@@ -1,0 +1,50 @@
+# Debian stable riscv64 compat test image.
+FROM riscv64/debian:sid-slim
+
+ARG PACKAGE_GROUP=x11-base
+ARG ZIG_VERSION=0.15.2
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    xz-utils \
+    ca-certificates \
+    pkg-config \
+    xvfb \
+    openbox \
+    x11-utils \
+    x11-xserver-utils \
+    libxcb1-dev \
+    libxcb-util-dev \
+    libxcb-ewmh-dev \
+    libxcb-icccm4-dev \
+    libxcb-keysyms1-dev \
+    libxcb-render-util0-dev \
+    libxcb-randr0-dev \
+    libxcb-shape0-dev \
+    libxcb-cursor-dev \
+    libxcb-xfixes0-dev \
+    libxcb-composite0-dev \
+    libcairo2-dev \
+    libpango1.0-dev \
+    && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \
+        apt-get install -y --no-install-recommends \
+        librsvg2-dev \
+        libgdk-pixbuf-2.0-dev \
+        libpipewire-0.3-dev; \
+    fi \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ARCH=$(uname -m) && \
+    curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-${ARCH}-linux-${ZIG_VERSION}.tar.xz" \
+    | tar -xJ -C /opt \
+    && ln -s /opt/zig-${ARCH}-linux-${ZIG_VERSION}/zig /usr/local/bin/zig
+
+WORKDIR /src
+COPY . .
+
+COPY .github-workflows/scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

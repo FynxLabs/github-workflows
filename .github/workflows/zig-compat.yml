@@ -1,0 +1,104 @@
+name: Zig Compat
+
+on:
+  workflow_call:
+    inputs:
+      distros:
+        description: "JSON array of distro names to test (e.g. [\"arch\",\"debian\",\"ubuntu-arm64\"])"
+        required: false
+        type: string
+        default: '["arch","debian","openmandriva","ubuntu","fedora","arch-arm64","debian-arm64","openmandriva-arm64","ubuntu-arm64","fedora-arm64","arch-riscv64","debian-riscv64","ubuntu-riscv64","fedora-riscv64"]'
+      package-group:
+        description: "Package group to install in containers: x11-base, x11-full"
+        required: false
+        type: string
+        default: "x11-base"
+      zig-version:
+        description: "Zig version to install in containers"
+        required: false
+        type: string
+        default: "0.15.2"
+      image-prefix:
+        description: "Docker image name prefix (e.g. dusk-compat, liminal-compat)"
+        required: true
+        type: string
+      test-commands:
+        description: "Newline-separated build/test commands to run inside the container"
+        required: false
+        type: string
+        default: |
+          zig build
+          zig build test
+      x11-test-commands:
+        description: "Commands to run under Xvfb (empty = skip X11 tests)"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  compat:
+    name: ${{ matrix.distro }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: ${{ fromJson(inputs.distros) }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Checkout shared workflows
+        uses: actions/checkout@v6
+        with:
+          repository: fynxlabs/github-workflows
+          path: .github-workflows
+          sparse-checkout: |
+            dockerfiles
+            scripts
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Determine platform
+        id: platform
+        run: |
+          case "${{ matrix.distro }}" in
+            *-arm64)   echo "platform=linux/arm64"   >> $GITHUB_OUTPUT ;;
+            *-riscv64) echo "platform=linux/riscv64" >> $GITHUB_OUTPUT ;;
+            *)         echo "platform=linux/amd64"   >> $GITHUB_OUTPUT ;;
+          esac
+
+      - name: Determine Dockerfile
+        id: base
+        run: |
+          echo "dockerfile=Dockerfile.${{ matrix.distro }}" >> $GITHUB_OUTPUT
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: .github-workflows/dockerfiles/${{ steps.base.outputs.dockerfile }}
+          platforms: ${{ steps.platform.outputs.platform }}
+          tags: ${{ inputs.image-prefix }}-${{ matrix.distro }}:ci
+          load: true
+          cache-from: type=gha,scope=${{ matrix.distro }}
+          cache-to: type=gha,scope=${{ matrix.distro }},mode=max
+          build-args: |
+            ZIG_VERSION=${{ inputs.zig-version }}
+            PACKAGE_GROUP=${{ inputs.package-group }}
+
+      - name: Run tests
+        env:
+          TEST_COMMANDS: ${{ inputs.test-commands }}
+          X11_TEST_COMMANDS: ${{ inputs.x11-test-commands }}
+        run: |
+          docker run --rm \
+            --platform ${{ steps.platform.outputs.platform }} \
+            -e TEST_COMMANDS="$TEST_COMMANDS" \
+            -e X11_TEST_COMMANDS="$X11_TEST_COMMANDS" \
+            --name ${{ inputs.image-prefix }}-${{ matrix.distro }} \
+            ${{ inputs.image-prefix }}-${{ matrix.distro }}:ci

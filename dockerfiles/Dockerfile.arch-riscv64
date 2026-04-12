@@ -1,0 +1,41 @@
+# Arch Linux riscv64 compat test image.
+# riscfive/archlinux is a community riscv64 Arch port.
+FROM riscfive/archlinux
+
+ARG PACKAGE_GROUP=x11-base
+ARG ZIG_VERSION=0.15.2
+
+RUN pacman --disable-sandbox -Syu --noconfirm \
+    base-devel \
+    git \
+    curl \
+    xz \
+    pkgconf \
+    xorg-server-xvfb \
+    openbox \
+    xorg-xprop \
+    xorg-xrandr \
+    libxcb \
+    xcb-util \
+    xcb-util-wm \
+    xcb-util-keysyms \
+    xcb-util-renderutil \
+    xcb-util-cursor \
+    cairo \
+    pango \
+    && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \
+        pacman --disable-sandbox -S --noconfirm librsvg gdk-pixbuf2 pipewire; \
+    fi \
+    && pacman --disable-sandbox -Scc --noconfirm
+
+RUN ARCH=$(uname -m) && \
+    curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-${ARCH}-linux-${ZIG_VERSION}.tar.xz" \
+    | tar -xJ -C /opt \
+    && ln -s /opt/zig-${ARCH}-linux-${ZIG_VERSION}/zig /usr/local/bin/zig
+
+WORKDIR /src
+COPY . .
+
+COPY .github-workflows/scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

@@ -1,0 +1,78 @@
+name: Zig CI
+
+on:
+  workflow_call:
+    inputs:
+      zig-fmt-paths:
+        description: "Paths to check with zig fmt (space-separated)"
+        required: false
+        type: string
+        default: "src/"
+      build-args:
+        description: "Extra arguments passed to zig build"
+        required: false
+        type: string
+        default: ""
+      test-args:
+        description: "Extra arguments passed to zig build test"
+        required: false
+        type: string
+        default: ""
+      system-deps:
+        description: "Package group to install: none, x11-base, x11-full"
+        required: false
+        type: string
+        default: "none"
+      mise-version:
+        description: "mise version to use"
+        required: false
+        type: string
+        default: "latest"
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: jdx/mise-action@v4
+        with:
+          version: ${{ inputs.mise-version }}
+
+      - name: Install system dependencies (x11-base)
+        if: inputs.system-deps == 'x11-base' || inputs.system-deps == 'x11-full'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libxcb1-dev \
+            libxcb-util-dev \
+            libxcb-ewmh-dev \
+            libxcb-icccm4-dev \
+            libxcb-keysyms1-dev \
+            libxcb-render-util0-dev \
+            libxcb-randr0-dev \
+            libxcb-shape0-dev \
+            libxcb-cursor-dev \
+            libxcb-xfixes0-dev \
+            libxcb-composite0-dev \
+            libcairo2-dev \
+            libpango1.0-dev
+
+      - name: Install system dependencies (x11-full)
+        if: inputs.system-deps == 'x11-full'
+        run: |
+          sudo apt-get install -y \
+            librsvg2-dev \
+            libgdk-pixbuf-2.0-dev \
+            libpipewire-0.3-dev
+
+      - name: Build
+        run: zig build ${{ inputs.build-args }}
+
+      - name: Test
+        run: zig build test ${{ inputs.test-args }}
+
+      - name: Lint
+        if: inputs.zig-fmt-paths != ''
+        run: zig fmt --check ${{ inputs.zig-fmt-paths }}
