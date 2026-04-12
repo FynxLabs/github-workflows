@@ -1,0 +1,215 @@
+name: Zig Release
+
+on:
+  workflow_call:
+    inputs:
+      mise-version:
+        description: "mise version to use (pinned to avoid 'latest' 404s)"
+        required: false
+        type: string
+        default: "2026.4.10"
+      system-deps:
+        description: "Package group to install: none, x11-base, x11-full"
+        required: false
+        type: string
+        default: "none"
+      cross-compile:
+        description: "Install cross-arch (arm64, riscv64) build dependencies"
+        required: false
+        type: boolean
+        default: false
+      goreleaser-config:
+        description: "Path to goreleaser config file"
+        required: false
+        type: string
+        default: ".goreleaser.yaml"
+      release-type:
+        description: "Release mechanism: goreleaser (binary projects) or github-release (library/no-artifact projects)"
+        required: false
+        type: string
+        default: "goreleaser"
+    secrets:
+      GITHUB_TOKEN:
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@v4
+        with:
+          version: ${{ inputs.mise-version }}
+
+      - name: Install system dependencies (x11-base)
+        if: inputs.system-deps == 'x11-base' || inputs.system-deps == 'x11-full'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libxcb1-dev \
+            libxcb-util-dev \
+            libxcb-ewmh-dev \
+            libxcb-icccm4-dev \
+            libxcb-keysyms1-dev \
+            libxcb-render-util0-dev \
+            libxcb-randr0-dev \
+            libxcb-shape0-dev \
+            libcairo2-dev \
+            libpango1.0-dev
+
+      - name: Install system dependencies (x11-full)
+        if: inputs.system-deps == 'x11-full'
+        run: |
+          sudo apt-get install -y \
+            librsvg2-dev \
+            libgdk-pixbuf-2.0-dev \
+            libpipewire-0.3-dev
+
+      - name: Install cross-compilation dependencies
+        if: inputs.cross-compile == true
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo dpkg --add-architecture riscv64
+
+          # Pin existing sources to amd64 only.
+          # security.ubuntu.com and azure archive do not serve arm64/riscv64;
+          # those architectures are only available from ports.ubuntu.com.
+          # DEB822 format (.sources files, Ubuntu 24.04)
+          for f in /etc/apt/sources.list.d/*.sources; do
+            [ -f "$f" ] && ! grep -q '^Architectures:' "$f" && \
+              sudo sed -i 's/^Suites:/Architectures: amd64\nSuites:/' "$f" || true
+          done
+          # Classic format (.list files)
+          [ -f /etc/apt/sources.list ] && \
+            sudo sed -i 's/^deb http/deb [arch=amd64] http/' /etc/apt/sources.list || true
+
+          # Add Ubuntu ports for arm64 + riscv64
+          CODENAME=$(. /etc/os-release && echo "$UBUNTU_CODENAME")
+          {
+            echo "deb [arch=arm64,riscv64] http://ports.ubuntu.com/ubuntu-ports ${CODENAME} main restricted universe"
+            echo "deb [arch=arm64,riscv64] http://ports.ubuntu.com/ubuntu-ports ${CODENAME}-updates main restricted universe"
+            echo "deb [arch=arm64,riscv64] http://ports.ubuntu.com/ubuntu-ports ${CODENAME}-security main restricted universe"
+          } | sudo tee /etc/apt/sources.list.d/cross-arch-ports.list
+
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libxcb1-dev \
+            libxcb-util-dev \
+            libxcb-ewmh-dev \
+            libxcb-icccm4-dev \
+            libxcb-keysyms1-dev \
+            libxcb-render-util0-dev \
+            libxcb-randr0-dev \
+            libxcb-shape0-dev \
+            libcairo2-dev \
+            libpango1.0-dev \
+            librsvg2-dev \
+            libgdk-pixbuf-2.0-dev \
+            libpipewire-0.3-dev
+          # Cross-arch packages: xcb and pipewire install cleanly.
+          # cairo/pango/gdk-pixbuf/librsvg -dev packages for arm64/riscv64 cannot be
+          # installed via apt because they transitively require libglib2.0-dev-bin which
+          # does not exist in Ubuntu ports. Those are handled with apt-get download below.
+          # libc6-dev for cross-arch: provides bits/wordsize.h and bits/types.h
+          # so Zig's C compiler resolves __WORDSIZE=64 and uintptr_t correctly.
+          # Without these, the x86_64 host's bits/wordsize.h is used, which
+          # sets __WORDSIZE=32 when __x86_64__ is not defined (i.e. aarch64/riscv64).
+          sudo apt-get install -y --no-install-recommends \
+            libc6-dev:arm64 \
+            libc6-dev:riscv64
+          sudo apt-get install -y --no-install-recommends \
+            -o DPkg::Options::="--force-overwrite" \
+            libxcb1-dev:arm64 \
+            libxcb-util-dev:arm64 \
+            libxcb-ewmh-dev:arm64 \
+            libxcb-icccm4-dev:arm64 \
+            libxcb-keysyms1-dev:arm64 \
+            libxcb-render-util0-dev:arm64 \
+            libxcb-randr0-dev:arm64 \
+            libxcb-shape0-dev:arm64 \
+            libpipewire-0.3-dev:arm64 \
+            libxcb1-dev:riscv64 \
+            libxcb-util-dev:riscv64 \
+            libxcb-ewmh-dev:riscv64 \
+            libxcb-icccm4-dev:riscv64 \
+            libxcb-keysyms1-dev:riscv64 \
+            libxcb-render-util0-dev:riscv64 \
+            libxcb-randr0-dev:riscv64 \
+            libxcb-shape0-dev:riscv64 \
+            libpipewire-0.3-dev:riscv64
+
+          # Symlink arch-independent xcb headers into cross-arch include paths.
+          # Zig's cross-compiler doesn't search /usr/include by default, and we
+          # can't add it wholesale (x86_64 pthread.h has regparm, invalid on arm/riscv).
+          # pkg-config for xcb doesn't emit -I flags since /usr/include is normally default.
+          for ARCH_DIR in x86_64-linux-gnu aarch64-linux-gnu riscv64-linux-gnu; do
+            sudo ln -sf /usr/include/xcb /usr/include/${ARCH_DIR}/xcb
+          done
+
+          # For cairo/pango/gdk-pixbuf/librsvg: download the .deb files and extract
+          # directly with dpkg -x, bypassing dependency resolution. This gives us the
+          # .so symlinks and .pc files needed for cross-compilation without requiring
+          # libglib2.0-dev-bin:arm64/riscv64 (which doesn't exist in Ubuntu ports).
+          mkdir -p /tmp/cross-debs /tmp/deb-extract
+          for ARCH in arm64 riscv64; do
+            (cd /tmp/cross-debs && sudo apt-get download \
+              libcairo2:${ARCH} libcairo2-dev:${ARCH} \
+              libpango-1.0-0:${ARCH} libpangocairo-1.0-0:${ARCH} libpango1.0-dev:${ARCH} \
+              libgdk-pixbuf-2.0-0:${ARCH} libgdk-pixbuf-2.0-dev:${ARCH} \
+              librsvg2-2:${ARCH} librsvg2-dev:${ARCH} \
+              libglib2.0-0t64:${ARCH} libglib2.0-dev:${ARCH} \
+              libharfbuzz0b:${ARCH} libharfbuzz-dev:${ARCH})
+          done
+          for deb in /tmp/cross-debs/*.deb; do
+            sudo dpkg -x "$deb" /tmp/deb-extract/
+            if [ -d /tmp/deb-extract/usr/lib ]; then
+              sudo cp -a /tmp/deb-extract/usr/lib/. /usr/lib/
+            fi
+            sudo rm -rf /tmp/deb-extract/
+          done
+
+          # Copy missing .pc files from x86_64 to cross-arch pkgconfig dirs.
+          # Transitive deps (xau, pixman, freetype, etc.) only have x86_64 .pc
+          # files. Without copies, PKG_CONFIG_LIBDIR builds fail to resolve them.
+          # Paths inside the copies are rewritten so they don't leak x86_64 -I flags.
+          for ARCH in aarch64-linux-gnu riscv64-linux-gnu; do
+            sudo mkdir -p /usr/lib/${ARCH}/pkgconfig
+            for pc in /usr/lib/x86_64-linux-gnu/pkgconfig/*.pc; do
+              target="/usr/lib/${ARCH}/pkgconfig/$(basename "$pc")"
+              if [ ! -f "$target" ]; then
+                sudo cp "$pc" "$target"
+                sudo sed -i "s|x86_64-linux-gnu|${ARCH}|g" "$target"
+              fi
+            done
+          done
+
+      - name: Test
+        if: inputs.release-type == 'github-release'
+        run: zig build test
+
+      - name: Lint
+        if: inputs.release-type == 'github-release'
+        run: zig fmt --check src/
+
+      - name: Create GitHub Release
+        if: inputs.release-type == 'github-release'
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: goreleaser/goreleaser-action@v7
+        if: inputs.release-type == 'goreleaser'
+        with:
+          version: "~> v2"
+          args: release --clean --config ${{ inputs.goreleaser-config }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
