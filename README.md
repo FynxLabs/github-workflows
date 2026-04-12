@@ -15,7 +15,7 @@ on: [push, pull_request]
 
 jobs:
   ci:
-    uses: fynxlabs/github-workflows/.github/workflows/zig-ci.yml@main
+    uses: fynxlabs/github-workflows/.github/workflows/zig-ci.yml@master
     with:
       system-deps: x11-base    # none | x11-base | x11-full
       build-args: ""            # extra args to zig build
@@ -42,7 +42,7 @@ on: [push, pull_request]
 
 jobs:
   compat:
-    uses: fynxlabs/github-workflows/.github/workflows/zig-compat.yml@main
+    uses: fynxlabs/github-workflows/.github/workflows/zig-compat.yml@master
     with:
       image-prefix: myproject-compat     # required
       package-group: x11-base            # x11-base | x11-full
@@ -112,13 +112,13 @@ on: [push, pull_request]
 
 jobs:
   build-test:
-    uses: fynxlabs/github-workflows/.github/workflows/zig-ci.yml@main
+    uses: fynxlabs/github-workflows/.github/workflows/zig-ci.yml@master
     with:
       system-deps: x11-full
       zig-fmt-paths: "src/"
 
   compat:
-    uses: fynxlabs/github-workflows/.github/workflows/zig-compat.yml@main
+    uses: fynxlabs/github-workflows/.github/workflows/zig-compat.yml@master
     with:
       image-prefix: dusk-compat
       package-group: x11-full
@@ -138,13 +138,13 @@ on: [push, pull_request]
 
 jobs:
   build-test:
-    uses: fynxlabs/github-workflows/.github/workflows/zig-ci.yml@main
+    uses: fynxlabs/github-workflows/.github/workflows/zig-ci.yml@master
     with:
       system-deps: x11-base
       zig-fmt-paths: "src/"
 
   compat:
-    uses: fynxlabs/github-workflows/.github/workflows/zig-compat.yml@main
+    uses: fynxlabs/github-workflows/.github/workflows/zig-compat.yml@master
     with:
       image-prefix: liminal-compat
       package-group: x11-base
@@ -152,3 +152,7 @@ jobs:
         zig build
         zig build test
 ```
+
+## License
+
+MIT - see [LICENSE](LICENSE).

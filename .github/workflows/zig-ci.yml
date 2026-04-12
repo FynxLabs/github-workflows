@@ -24,10 +24,10 @@ on:
         type: string
         default: "none"
       mise-version:
-        description: "mise version to use"
+        description: "mise version to use (pinned to avoid 'latest' 404s)"
         required: false
         type: string
-        default: "latest"
+        default: "2026.4.10"
 
 jobs:
   build-test:
