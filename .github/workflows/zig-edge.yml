@@ -23,6 +23,11 @@ on:
         required: false
         type: string
         default: ".goreleaser.edge.yaml"
+      sibling-repos:
+        description: "Space-separated list of org/repo to checkout as siblings (e.g. 'fynxlabs/skg fynxlabs/liminal')"
+        required: false
+        type: string
+        default: ""
     secrets:
       GITHUB_TOKEN:
         required: true
@@ -47,6 +52,14 @@ jobs:
           git tag -f "$TAG"
           git push origin "$TAG" -f
           echo "GORELEASER_CURRENT_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Checkout sibling repositories
+        if: inputs.sibling-repos != ''
+        run: |
+          for repo in ${{ inputs.sibling-repos }}; do
+            name="${repo##*/}"
+            git clone --depth 1 "https://github.com/${repo}.git" "../${name}"
+          done
 
       - uses: jdx/mise-action@v4
         with:
