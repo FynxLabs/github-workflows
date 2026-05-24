@@ -15,13 +15,15 @@ RUN pacman -Syu --noconfirm \
     openbox \
     xorg-xprop \
     xorg-xrandr \
-    # x11-base: xcb + cairo + pango
+    # x11-base: xcb + cairo + pango + xkbcommon
     libxcb \
     xcb-util \
     xcb-util-wm \
     xcb-util-keysyms \
     xcb-util-renderutil \
     xcb-util-cursor \
+    libxkbcommon \
+    libxkbcommon-x11 \
     cairo \
     pango \
     && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \

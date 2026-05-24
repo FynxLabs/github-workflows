@@ -15,13 +15,15 @@ RUN dnf install -y \
     openbox \
     xprop \
     xrandr \
-    # x11-base: xcb + cairo + pango
+    # x11-base: xcb + cairo + pango + xkbcommon
     libxcb-devel \
     xcb-util-devel \
     xcb-util-wm-devel \
     xcb-util-keysyms-devel \
     xcb-util-renderutil-devel \
     xcb-util-cursor-devel \
+    libxkbcommon-devel \
+    libxkbcommon-x11-devel \
     cairo-devel \
     pango-devel \
     && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \

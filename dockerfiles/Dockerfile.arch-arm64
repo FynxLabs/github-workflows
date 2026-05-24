@@ -21,6 +21,8 @@ RUN pacman -Syu --noconfirm \
     xcb-util-keysyms \
     xcb-util-renderutil \
     xcb-util-cursor \
+    libxkbcommon \
+    libxkbcommon-x11 \
     cairo \
     pango \
     && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \

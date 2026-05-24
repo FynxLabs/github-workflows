@@ -69,6 +69,9 @@ jobs:
             libxcb-cursor-dev \
             libxcb-xfixes0-dev \
             libxcb-composite0-dev \
+            libxcb-xtest0-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
             libcairo2-dev \
             libpango1.0-dev
 

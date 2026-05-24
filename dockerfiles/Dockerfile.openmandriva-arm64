@@ -22,6 +22,8 @@ RUN dnf install -y \
     lib64xcb-util-keysyms-devel \
     lib64xcb-util-renderutil-devel \
     lib64xcb-util-cursor-devel \
+    lib64xkbcommon-devel \
+    lib64xkbcommon-x11-devel \
     cairo-devel \
     pango-devel \
     && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \
