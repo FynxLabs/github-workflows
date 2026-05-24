@@ -16,6 +16,7 @@ RUN dnf install -y \
     openbox \
     xprop \
     xrandr \
+    dejavu-sans-fonts \
     libxcb-devel \
     xcb-util-devel \
     xcb-util-wm-devel \

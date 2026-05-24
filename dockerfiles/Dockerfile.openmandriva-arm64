@@ -15,6 +15,7 @@ RUN dnf install -y \
     openbox \
     xprop \
     xrandr \
+    dejavu-sans-fonts \
     # arm64 uses lib64 prefix for xcb packages
     lib64xcb-devel \
     lib64xcb-util-devel \

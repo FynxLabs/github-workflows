@@ -16,6 +16,7 @@ RUN apt-get update -q && apt-get install -y --no-install-recommends \
     openbox \
     x11-utils \
     x11-xserver-utils \
+    fonts-dejavu-core \
     libxcb1-dev \
     libxcb-util-dev \
     libxcb-ewmh-dev \
