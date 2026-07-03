@@ -222,3 +222,9 @@ jobs:
           args: release --clean --config ${{ inputs.goreleaser-config }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger naur repo update
+        if: success()
+        run: gh api /repos/FynxLabs/naur/dispatches -f event_type=release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
