@@ -29,10 +29,20 @@ on:
         type: string
         default: "goreleaser"
       sibling-repos:
-        description: "Space-separated list of org/repo to checkout as siblings (e.g. 'fynxlabs/skg fynxlabs/liminal')"
+        description: "Space-separated list of org/repo to checkout as siblings (e.g. 'tenebrux/liminal')"
         required: false
         type: string
         default: ""
+    secrets:
+      REPO_TOKEN:
+        description: "Token with read access to private sibling repositories"
+        required: false
+      REPO_SSH_KEY:
+        description: "SSH deploy key with read access to private sibling repositories"
+        required: false
+      NAUR_DISPATCH_TOKEN:
+        description: "Token with actions:write access to tenebrux/naur"
+        required: false
 permissions:
   contents: write
 
@@ -47,10 +57,28 @@ jobs:
 
       - name: Checkout sibling repositories
         if: inputs.sibling-repos != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+          REPO_SSH_KEY: ${{ secrets.REPO_SSH_KEY }}
+          SIBLING_REPOS: ${{ inputs.sibling-repos }}
         run: |
-          for repo in ${{ inputs.sibling-repos }}; do
+          if [ -n "$REPO_SSH_KEY" ]; then
+            key_file="$RUNNER_TEMP/tenebrux-repo-key"
+            printf '%s\n' "$REPO_SSH_KEY" > "$key_file"
+            chmod 600 "$key_file"
+          fi
+          read -r -a repos <<< "$SIBLING_REPOS"
+          for repo in "${repos[@]}"; do
             name="${repo##*/}"
-            git clone --depth 1 "https://github.com/${repo}.git" "../${name}"
+            if [ -n "$REPO_TOKEN" ]; then
+              GH_TOKEN="$REPO_TOKEN" gh repo clone "$repo" "../${name}" -- --depth 1
+            elif [ -n "$REPO_SSH_KEY" ]; then
+              GIT_SSH_COMMAND="ssh -i $key_file -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+                git clone --depth 1 "git@github.com:${repo}.git" "../${name}"
+            else
+              gh repo clone "$repo" "../${name}" -- --depth 1
+            fi
           done
 
       - uses: jdx/mise-action@v4
@@ -79,6 +107,7 @@ jobs:
           sudo apt-get install -y \
             librsvg2-dev \
             libgdk-pixbuf-2.0-dev \
+            libdbus-1-dev \
             libpipewire-0.3-dev
 
       - name: Install cross-compilation dependencies
@@ -121,6 +150,7 @@ jobs:
             libpango1.0-dev \
             librsvg2-dev \
             libgdk-pixbuf-2.0-dev \
+            libdbus-1-dev \
             libpipewire-0.3-dev
           # Cross-arch packages: xcb and pipewire install cleanly.
           # cairo/pango/gdk-pixbuf/librsvg -dev packages for arm64/riscv64 cannot be
@@ -143,6 +173,7 @@ jobs:
             libxcb-render-util0-dev:arm64 \
             libxcb-randr0-dev:arm64 \
             libxcb-shape0-dev:arm64 \
+            libdbus-1-dev:arm64 \
             libpipewire-0.3-dev:arm64 \
             libxcb1-dev:riscv64 \
             libxcb-util-dev:riscv64 \
@@ -152,6 +183,7 @@ jobs:
             libxcb-render-util0-dev:riscv64 \
             libxcb-randr0-dev:riscv64 \
             libxcb-shape0-dev:riscv64 \
+            libdbus-1-dev:riscv64 \
             libpipewire-0.3-dev:riscv64
 
           # Symlink arch-independent xcb headers into cross-arch include paths.
@@ -225,6 +257,11 @@ jobs:
 
       - name: Trigger naur repo update
         if: success()
-        run: gh api /repos/FynxLabs/naur/dispatches -f event_type=release
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::NAUR_DISPATCH_TOKEN is not configured; skipping naur update"
+            exit 0
+          fi
+          gh api /repos/tenebrux/naur/dispatches -f event_type=release
         env:
           GH_TOKEN: ${{ secrets.NAUR_DISPATCH_TOKEN }}

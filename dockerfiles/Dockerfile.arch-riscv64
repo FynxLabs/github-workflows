@@ -27,7 +27,7 @@ RUN pacman --disable-sandbox -Syu --noconfirm \
     cairo \
     pango \
     && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \
-        pacman --disable-sandbox -S --noconfirm librsvg gdk-pixbuf2 pipewire; \
+        pacman --disable-sandbox -S --noconfirm librsvg gdk-pixbuf2 dbus pipewire; \
     fi \
     && pacman --disable-sandbox -Scc --noconfirm
 

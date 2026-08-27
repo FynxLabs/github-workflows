@@ -29,7 +29,7 @@ RUN pacman -Syu --noconfirm \
     cairo \
     pango \
     && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \
-        pacman -S --noconfirm librsvg gdk-pixbuf2 pipewire; \
+        pacman -S --noconfirm librsvg gdk-pixbuf2 dbus pipewire; \
     fi \
     && pacman -Scc --noconfirm
 

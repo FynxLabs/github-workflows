@@ -16,20 +16,20 @@ RUN dnf install -y \
     xprop \
     xrandr \
     # Baseline font so fontconfig-backed tests can resolve a real family
-    dejavu-sans-fonts \
+    fonts-ttf-dejavu \
     # x11-base: xcb + cairo + pango + xkbcommon
     libxcb-devel \
     xcb-util-devel \
     xcb-util-wm-devel \
     xcb-util-keysyms-devel \
     xcb-util-renderutil-devel \
-    xcb-util-cursor-devel \
+    lib64xcb-cursor-devel \
     libxkbcommon-devel \
     libxkbcommon-x11-devel \
     cairo-devel \
     pango-devel \
     && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \
-        dnf install -y lib64rsvg2-devel lib64gdk_pixbuf2.0-devel pipewire-devel; \
+        dnf install -y lib64rsvg2-devel lib64gdk_pixbuf2.0-devel lib64dbus-1-devel pipewire-devel; \
     fi \
     && dnf clean all
 

@@ -26,7 +26,7 @@ RUN dnf install -y \
     cairo-devel \
     pango-devel \
     && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \
-        dnf install -y librsvg2-devel gdk-pixbuf2-devel pipewire-devel; \
+        dnf install -y librsvg2-devel gdk-pixbuf2-devel dbus-devel pipewire-devel; \
     fi \
     && dnf clean all
 

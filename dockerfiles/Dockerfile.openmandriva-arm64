@@ -15,20 +15,20 @@ RUN dnf install -y \
     openbox \
     xprop \
     xrandr \
-    dejavu-sans-fonts \
+    fonts-ttf-dejavu \
     # arm64 uses lib64 prefix for xcb packages
     lib64xcb-devel \
     lib64xcb-util-devel \
     lib64xcb-util-wm-devel \
     lib64xcb-util-keysyms-devel \
     lib64xcb-util-renderutil-devel \
-    lib64xcb-util-cursor-devel \
+    lib64xcb-cursor-devel \
     lib64xkbcommon-devel \
     lib64xkbcommon-x11-devel \
     cairo-devel \
     pango-devel \
     && if [ "$PACKAGE_GROUP" = "x11-full" ]; then \
-        dnf install -y lib64rsvg2-devel lib64gdk_pixbuf2.0-devel pipewire-devel; \
+        dnf install -y lib64rsvg2-devel lib64gdk_pixbuf2.0-devel lib64dbus-1-devel pipewire-devel; \
     fi \
     && dnf clean all
 

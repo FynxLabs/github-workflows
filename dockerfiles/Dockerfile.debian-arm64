@@ -36,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         apt-get install -y --no-install-recommends \
         librsvg2-dev \
         libgdk-pixbuf-2.0-dev \
+        libdbus-1-dev \
         libpipewire-0.3-dev; \
     fi \
     && rm -rf /var/lib/apt/lists/*

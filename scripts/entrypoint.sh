@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generic compat test entrypoint for FynxLabs Zig projects.
+# Generic compat test entrypoint for Tenebrux Zig projects.
 # Reads test commands from environment variables:
 #   TEST_COMMANDS      - newline-separated commands to run headless
 #   X11_TEST_COMMANDS  - newline-separated commands to run under Xvfb + Openbox

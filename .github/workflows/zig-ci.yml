@@ -29,10 +29,17 @@ on:
         type: string
         default: "2026.4.10"
       sibling-repos:
-        description: "Space-separated list of org/repo to checkout as siblings (e.g. 'fynxlabs/skg fynxlabs/liminal')"
+        description: "Space-separated list of org/repo to checkout as siblings (e.g. 'tenebrux/liminal')"
         required: false
         type: string
         default: ""
+    secrets:
+      REPO_TOKEN:
+        description: "Token with read access to private sibling repositories"
+        required: false
+      REPO_SSH_KEY:
+        description: "SSH deploy key with read access to private sibling repositories"
+        required: false
 
 jobs:
   build-test:
@@ -43,10 +50,28 @@ jobs:
 
       - name: Checkout sibling repositories
         if: inputs.sibling-repos != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+          REPO_SSH_KEY: ${{ secrets.REPO_SSH_KEY }}
+          SIBLING_REPOS: ${{ inputs.sibling-repos }}
         run: |
-          for repo in ${{ inputs.sibling-repos }}; do
+          if [ -n "$REPO_SSH_KEY" ]; then
+            key_file="$RUNNER_TEMP/tenebrux-repo-key"
+            printf '%s\n' "$REPO_SSH_KEY" > "$key_file"
+            chmod 600 "$key_file"
+          fi
+          read -r -a repos <<< "$SIBLING_REPOS"
+          for repo in "${repos[@]}"; do
             name="${repo##*/}"
-            git clone --depth 1 "https://github.com/${repo}.git" "../${name}"
+            if [ -n "$REPO_TOKEN" ]; then
+              GH_TOKEN="$REPO_TOKEN" gh repo clone "$repo" "../${name}" -- --depth 1
+            elif [ -n "$REPO_SSH_KEY" ]; then
+              GIT_SSH_COMMAND="ssh -i $key_file -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+                git clone --depth 1 "git@github.com:${repo}.git" "../${name}"
+            else
+              gh repo clone "$repo" "../${name}" -- --depth 1
+            fi
           done
 
       - uses: jdx/mise-action@v4
@@ -81,6 +106,7 @@ jobs:
           sudo apt-get install -y \
             librsvg2-dev \
             libgdk-pixbuf-2.0-dev \
+            libdbus-1-dev \
             libpipewire-0.3-dev
 
       - name: Build

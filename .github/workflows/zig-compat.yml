@@ -34,6 +34,18 @@ on:
         required: false
         type: string
         default: ""
+      sibling-repos:
+        description: "Space-separated list of org/repo to mount beside /src"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      REPO_TOKEN:
+        description: "Token with read access to private sibling repositories"
+        required: false
+      REPO_SSH_KEY:
+        description: "SSH deploy key with read access to private sibling repositories"
+        required: false
 
 jobs:
   compat:
@@ -51,11 +63,37 @@ jobs:
       - name: Checkout shared workflows
         uses: actions/checkout@v6
         with:
-          repository: fynxlabs/github-workflows
+          repository: tenebrux/github-workflows
           path: .github-workflows
           sparse-checkout: |
             dockerfiles
             scripts
+
+      - name: Checkout sibling repositories
+        if: inputs.sibling-repos != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+          REPO_SSH_KEY: ${{ secrets.REPO_SSH_KEY }}
+          SIBLING_REPOS: ${{ inputs.sibling-repos }}
+        run: |
+          if [ -n "$REPO_SSH_KEY" ]; then
+            key_file="$RUNNER_TEMP/tenebrux-repo-key"
+            printf '%s\n' "$REPO_SSH_KEY" > "$key_file"
+            chmod 600 "$key_file"
+          fi
+          read -r -a repos <<< "$SIBLING_REPOS"
+          for repo in "${repos[@]}"; do
+            name="${repo##*/}"
+            if [ -n "$REPO_TOKEN" ]; then
+              GH_TOKEN="$REPO_TOKEN" gh repo clone "$repo" "../${name}" -- --depth 1
+            elif [ -n "$REPO_SSH_KEY" ]; then
+              GIT_SSH_COMMAND="ssh -i $key_file -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+                git clone --depth 1 "git@github.com:${repo}.git" "../${name}"
+            else
+              gh repo clone "$repo" "../${name}" -- --depth 1
+            fi
+          done
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -65,17 +103,21 @@ jobs:
 
       - name: Determine platform
         id: platform
+        env:
+          DISTRO: ${{ matrix.distro }}
         run: |
-          case "${{ matrix.distro }}" in
-            *-arm64)   echo "platform=linux/arm64"   >> $GITHUB_OUTPUT ;;
-            *-riscv64) echo "platform=linux/riscv64" >> $GITHUB_OUTPUT ;;
-            *)         echo "platform=linux/amd64"   >> $GITHUB_OUTPUT ;;
+          case "$DISTRO" in
+            *-arm64)   echo "platform=linux/arm64"   >> "$GITHUB_OUTPUT" ;;
+            *-riscv64) echo "platform=linux/riscv64" >> "$GITHUB_OUTPUT" ;;
+            *)         echo "platform=linux/amd64"   >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: Determine Dockerfile
         id: base
+        env:
+          DISTRO: ${{ matrix.distro }}
         run: |
-          echo "dockerfile=Dockerfile.${{ matrix.distro }}" >> $GITHUB_OUTPUT
+          echo "dockerfile=Dockerfile.${DISTRO}" >> "$GITHUB_OUTPUT"
 
       - name: Build image
         uses: docker/build-push-action@v7
@@ -95,10 +137,24 @@ jobs:
         env:
           TEST_COMMANDS: ${{ inputs.test-commands }}
           X11_TEST_COMMANDS: ${{ inputs.x11-test-commands }}
+          SIBLING_REPOS: ${{ inputs.sibling-repos }}
+          PLATFORM: ${{ steps.platform.outputs.platform }}
+          IMAGE_PREFIX: ${{ inputs.image-prefix }}
+          DISTRO: ${{ matrix.distro }}
         run: |
+          mount_args=()
+          repos=()
+          if [ -n "$SIBLING_REPOS" ]; then
+            read -r -a repos <<< "$SIBLING_REPOS"
+          fi
+          for repo in "${repos[@]}"; do
+            name="${repo##*/}"
+            mount_args+=(--volume "${GITHUB_WORKSPACE}/../${name}:/${name}:ro")
+          done
           docker run --rm \
-            --platform ${{ steps.platform.outputs.platform }} \
+            --platform "$PLATFORM" \
+            "${mount_args[@]}" \
             -e TEST_COMMANDS="$TEST_COMMANDS" \
             -e X11_TEST_COMMANDS="$X11_TEST_COMMANDS" \
-            --name ${{ inputs.image-prefix }}-${{ matrix.distro }} \
-            ${{ inputs.image-prefix }}-${{ matrix.distro }}:ci
+            --name "${IMAGE_PREFIX}-${DISTRO}" \
+            "${IMAGE_PREFIX}-${DISTRO}:ci"
